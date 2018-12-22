@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import re
 import glob
-from torch.utils.data import Dataset, Dataloader
+from torch.utils.data import Dataset
 
 
 class IAM_Dataset(Dataset):
@@ -18,14 +18,14 @@ class IAM_Dataset(Dataset):
         with open(labels_path, 'rb') as f:
             for line in f.read().splitlines()[18:]:
                 match = re.findall("[^ ]+$", line.decode())[0]
-                self.append(match)
+                self.labels.append(match)
 
 
     def __len__(self):
         return len(self.filenames)
 
     def __getitem__(self, idx):
-        img = cv2.imread(self.filenames[idx])
+        img = cv2.imread(self.filenames[idx],cv2.IMREAD_GRAYSCALE)
         sample = {'image': img, 'label': self.labels[idx]}
 
         if self.transform:
