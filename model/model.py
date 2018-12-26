@@ -44,7 +44,9 @@ class DeepOCR(nn.Module):
         x = self.pool2(F.relu(self.conv4(x)))
         x = self.pool2(F.relu(self.conv5(x)))
         x = x.view(x.size(0),x.size(1)*x.size(2),-1)
-        x = self.lstm(x)
-        x = F.log_softmax(self.fc(x))
+        x = x.permute((2,0,1))
+        x,_ = self.lstm(x)
+        x = self.fc(x)
+        x = F.log_softmax(x,-1)
 
         return x
