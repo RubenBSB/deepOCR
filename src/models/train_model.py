@@ -1,11 +1,12 @@
-from data_loader import IAM_Dataset
-from torch.utils.data import DataLoader
-from model import DeepOCR
 import torch
-from data_transform import Rescale, Padding, ToTensor
 import torch.nn as nn
 import torch.optim as optim
+from src.data.make_dataset import IAM_Dataset
+from src.data.data_transform import Rescale, Padding, ToTensor
+from CRNN_model import DeepOCR
+from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
+
 
 
 def print_training(epoch,batch_index,data_loader,loss):
@@ -14,13 +15,13 @@ def print_training(epoch,batch_index,data_loader,loss):
     progress_bar_width = 30
     units = int(batch_index * ((batch_size * progress_bar_width)/data_size))
     print("Epoch ", epoch+1, progress_bar_width * " ", "Loss", 20 * " ")
-    print("[="+"=" * units + " " * (progress_bar_width - units),"]")
+    print("[="+"=" * units + " " * (progress_bar_width - units),"]    ", loss)
 
 if __name__ == '__main__':
 
     transform = transforms.Compose([Rescale((32,128)), Padding((32,128)), ToTensor()])
 
-    train_dataset = IAM_Dataset(root_dir='../data', transform = transform, set = 'training')
+    train_dataset = IAM_Dataset(root_dir='../../data', transform = transform, set = 'training')
     train_dataloader = DataLoader(train_dataset, batch_size = 128, shuffle = True, num_workers = 4)
 
     # val_dataset = IAM_Dataset(root_dir='../data', transform = transform, set = 'validation')
