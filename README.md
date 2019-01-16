@@ -4,7 +4,7 @@ This is a school project in deep learning I am currently working on.
 
 It consists in building a handwritten text recognition system using CNC-LSTM-CTC architecture.
 
-I have plan to use a language model later to analyse recognized words and improve the accuracy.
+I have planned to use a language model later to analyse recognized words and improve the accuracy.
 
 This [article](https://arxiv.org/pdf/1411.4389.pdf) was really helpful to understand the concept of Convolutional Recurrent Neural Network (CRNN).
 
