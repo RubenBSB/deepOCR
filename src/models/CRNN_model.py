@@ -4,6 +4,8 @@ import torch.nn.functional as F
 
 class Conv2dSame(torch.nn.Module):
 
+    """Convolutional layer with "same" padding."""
+
     def __init__(self, in_channels, out_channels, kernel_size, bias=True, padding_layer=torch.nn.ZeroPad2d):
         super().__init__()
         ka = kernel_size // 2
@@ -12,10 +14,13 @@ class Conv2dSame(torch.nn.Module):
             padding_layer((ka,kb,ka,kb)),
             torch.nn.Conv2d(in_channels, out_channels, kernel_size, bias=bias)
         )
+
     def forward(self, x):
         return self.net(x)
 
 class DeepOCR(nn.Module):
+
+    """Model for handwritten text recognition."""
 
     def __init__(self,input_size):
         super(DeepOCR,self).__init__()
@@ -38,11 +43,11 @@ class DeepOCR(nn.Module):
 
 
     def forward(self,x):
-        x = self.pool1(F.relu(self.conv1(x)))
-        x = self.pool1(F.relu(self.conv2(x)))
-        x = self.pool2(F.relu(self.conv3(x)))
-        x = self.pool2(F.relu(self.conv4(x)))
-        x = self.pool2(F.relu(self.conv5(x)))
+        x = self.pool1(F.leaky_relu(self.conv1(x)))
+        x = self.pool1(F.leaky_relu(self.conv2(x)))
+        x = self.pool2(F.leaky_relu(self.conv3(x)))
+        x = self.pool2(F.leaky_relu(self.conv4(x)))
+        x = self.pool2(F.leaky_relu(self.conv5(x)))
         x = x.view(x.size(0),x.size(1)*x.size(2),-1)
         x = x.permute((2,0,1))
         x,_ = self.lstm(x)

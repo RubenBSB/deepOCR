@@ -1,27 +1,27 @@
 import cv2
-import numpy as np
 import os
 import re
 import glob
 from torch.utils.data import Dataset
-import torch.nn.functional as F
-import torch
 
 class IAM_Dataset(Dataset):
 
     def __init__(self,root_dir,transform=None, set='training'):
         self.root_dir = root_dir
-        self.filenames = sorted(glob.glob(root_dir+"/words/*/*/*.png"))
-        self.labels = []
+        filenames = sorted(glob.glob(root_dir+"/words/*/*/*.png"))
+        labels = []
         self.transform = transform
         self.char_to_index = {}
         self.index_to_char = {}
         self.max_label_length = 0
         self.set = set
 
+        self.char_to_index['BLANK'] = 0
+        self.index_to_char[0] = 'BLANK'
+
         labels_path = os.path.join(root_dir,"words.txt")
         with open(labels_path, 'rb') as f:
-            last_index = 0
+            last_index = 1
             for line in f.read().splitlines()[18:]:
                 match = re.findall("[^ ]+$", line.decode())[0]
                 for char in match:
@@ -31,10 +31,17 @@ class IAM_Dataset(Dataset):
                         last_index += 1
                 if len(match) > self.max_label_length:
                     self.max_label_length = len(match)
-                self.labels.append(match)
+                labels.append(match)
 
-        self.char_to_index['BLANK'] = len(self.char_to_index)
-        self.index_to_char[len(self.char_to_index)] = 'BLANK'
+        # NoneType images
+        del filenames[4152]
+        del filenames[113620]
+        del labels[4152]
+        del labels[113620]
+
+
+        self.filenames = filenames
+        self.labels = labels
 
         assert(self.set in ['training', 'validation'])
         if self.set == 'training':
@@ -52,11 +59,8 @@ class IAM_Dataset(Dataset):
     def __getitem__(self, idx):
         img = cv2.imread(self.filenames[idx],cv2.IMREAD_GRAYSCALE)
         label = self.labels[idx]
-        target = torch.tensor([self.char_to_index[char] for char in label])
-        seq_len = len(target)
-        padding_size = self.max_label_length - len(target)
-        target = F.pad(target,(0,padding_size),"constant",78)
-        sample = {'image': img, 'label': label, 'target': target, 'seq_length': seq_len}
+        seq_len = len(label)
+        sample = {'image': img, 'label': label, 'seq_length': seq_len}
 
         if self.transform and img is not None:
             sample = self.transform(sample)
