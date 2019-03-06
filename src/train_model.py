@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
     model = DeepOCR((32, 128)).double()
     ctc_loss = nn.CTCLoss(0)
-    optimizer = optim.Adam(model.parameters(), lr = 0.001)
+    optimizer = optim.Adam(model.parameters(), lr = 0.0001)
 
     train_loss_plot = []
     val_loss_plot = []
@@ -49,6 +49,7 @@ if __name__ == '__main__':
             outputs = model(inputs)
             loss = ctc_loss(outputs, targets, torch.full((len(batch['image']),), 32, dtype=torch.int32), seq_lengths)
             loss.backward()
+            #print(model.fc.weight.grad)
             optimizer.step()
 
 
