@@ -36,9 +36,10 @@ class IAM_Dataset(Dataset):
         # NoneType images
         del filenames[4152]
         del filenames[113620]
+        del filenames[107039]
         del labels[4152]
         del labels[113620]
-
+        del labels[107039]
 
         self.filenames = filenames
         self.labels = labels
