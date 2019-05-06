@@ -1,5 +1,7 @@
 """Train the DeepOCR model."""
 
+from __future__ import division
+
 import argparse
 import logging
 import os
@@ -15,13 +17,9 @@ from data.make_dataset import IAM_Dataset
 from data.data_transform import Rescale, Padding, ToTensor
 from models.CRNN_model import DeepOCR
 from evaluate import evaluate, metrics
-from visualise import VisdomLinePlotter
 
-import pickle
 from tqdm import tqdm
-import numpy as np
-
-import pdb
+import pickle
 
 # parse parameters given at the execution
 parser = argparse.ArgumentParser()
@@ -39,9 +37,9 @@ if __name__ == '__main__':
     assert os.path.isfile(json_path), "There is no JSON file at {}".format(json_path)
     params = utils.Params(json_path)
 
-    # initialise plotter
-    #global plotter
-    #plotter = VisdomLinePlotter(env_name='main')
+    # initialise plotter (problem of with visdom to fix)
+    # global plotter
+    # plotter = VisdomLinePlotter(env_name='main')
 
     # check whether a GPU is available
     params.cuda = torch.cuda.is_available()
@@ -56,18 +54,18 @@ if __name__ == '__main__':
 
     # training set
     train_dataset = IAM_Dataset(root_dir=args.data_dir, transform = transform, set = 'training')
-    train_dataloader = DataLoader(train_dataset, batch_size = 128, shuffle = True, num_workers = 4)
+    train_dataloader = DataLoader(train_dataset, batch_size = 128, shuffle = True, num_workers = params.num_workers, pin_memory=True)
 
     # dev set
     val_dataset = IAM_Dataset(root_dir=args.data_dir, transform = transform, set = 'validation')
-    val_dataloader = DataLoader(train_dataset, batch_size = 128, shuffle = True, num_workers = 4)
+    val_dataloader = DataLoader(val_dataset, batch_size = 128, shuffle = True, num_workers = params.num_workers, pin_memory=True)
 
     logging.info("- done.")
 
     # define the model
     model = DeepOCR(input_size=(32, 128)).double()
-    if params.cuda:
-        model.cuda()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
 
     # define the loss and specify the BLANK character index
     ctc_loss = nn.CTCLoss(0)
@@ -75,9 +73,11 @@ if __name__ == '__main__':
     # define the optimizer
     optimizer = optim.Adam(model.parameters(), lr = params.learning_rate)
 
-    #train_loss_plot = []
-    #val_loss_plot = []
+    # saves the values to plot for every epoch
+    train_loss_plot = []
+    val_loss_plot = []
 
+    # dictionary containing the metrics that we want to look at
     metrics = metrics
 
     # reload weights from restore_file if specified
@@ -87,8 +87,9 @@ if __name__ == '__main__':
         utils.load_checkpoint(restore_path, model, optimizer)
 
     # we will save the model that has the best performances on the validation set
-    best_val_acc = 0.0
+    best_val_sim = 0.0
 
+    # MAIN LOOP
     for epoch in range(params.num_epochs):
 
         # start training a new epoch
@@ -99,10 +100,7 @@ if __name__ == '__main__':
         # set the model to training mode
         model.train()
 
-        # history of the metrics (accuracy, loss, ...)
-        historic = []
-
-        #
+        # average values of loss and similarity for one epoch
         loss_avg = utils.RunningAverage()
         sim_avg = utils.RunningAverage()
 
@@ -119,9 +117,8 @@ if __name__ == '__main__':
                     targets += target
                 targets = torch.tensor(targets)
 
-                # move data to GPU
-                if params.cuda:
-                    inputs,targets = inputs.cuda(async=True), targets.cuda(async=True)
+                # move data to GPU if possible
+                inputs, targets = inputs.to(device), targets.to(device)
 
                 # compute outputs and loss
                 outputs = model(inputs)
@@ -130,66 +127,57 @@ if __name__ == '__main__':
                 # clear previous gradients and compute the new one
                 optimizer.zero_grad()
                 loss.backward()
-                #print(model.fc.weight.grad)
 
                 # update model parameters
                 optimizer.step()
 
-                #
-                if i % params.save_hist_steps == 0:
-                    outputs = outputs.data.cpu()
-                    targets = targets.data.cpu()
-                    hist_batch = {metric: metrics[metric](outputs, labels, train_dataset.index_to_char) for metric in metrics}
-                    hist_batch['loss'] = loss.item()
-                    historic.append(hist_batch)
-                    #plotter.plot('loss', 'train', 'Legend', i, loss.item())
-
-            #train_loss_plot.append(float(loss))
-            #print_training(epoch,i,train_dataloader,round(float(loss),4))
-
-                # update the average loss
+                # update the average loss and similarity
                 loss_avg.update(loss.item())
-
                 sim_avg.update(metrics['similarity'](outputs, labels, train_dataset.index_to_char))
 
+                # display the instantaneous loss and similarity and update the progress bar
                 t.set_postfix(loss='{:05.3f}'.format(loss_avg()), train_sim='{:05.3f}'.format(sim_avg()))
                 t.update()
 
-        metrics_mean = {metric: np.mean([x[metric] for x in historic]) for metric in historic[0]}
-        metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
-        logging.info("- Train metrics: " + metrics_string)
-
-        #---------
+        #---------------------------------------
 
         # evaluate on validation set after each new epoch
-        val_metrics = evaluate(model,ctc_loss, val_dataloader, metrics, params)
-        val_acc = val_metrics['accuracy']
+        val_metrics = evaluate(model, ctc_loss, val_dataloader, metrics)
+        val_sim = val_metrics['similarity']
 
-        is_best = val_acc >= best_val_acc
+        # update learning curves
+        val_loss_plot.append(float(val_metrics['loss']))
+        train_loss_plot.append(float(loss_avg()))
 
-        # Save weights
+        logging.info("Validation similarity : {}".format(val_sim))
+
+        # keep track of the best model
+        is_best = val_sim >= best_val_sim
+
+        # save weights
         utils.save_checkpoint({'epoch': epoch + 1,
                                'state_dict': model.state_dict(),
                                'optim_dict' : optimizer.state_dict()},
                                is_best=is_best,
                                checkpoint=args.model_dir)
 
-        # If best_eval, best_save_path
+        # if best_eval, best_save_path
         if is_best:
-            logging.info("- Found new best accuracy")
-            best_val_acc = val_acc
+            logging.info("- Found new best similarity")
+            best_val_sim = val_sim
 
-            # Save best val metrics in a json file in the model directory
+            # save best val metrics in a json file in the model directory
             best_json_path = os.path.join(args.model_dir, "metrics_val_best_weights.json")
             utils.save_dict_to_json(val_metrics, best_json_path)
 
-        # Save latest val metrics in a json file in the model directory
+        # save latest val metrics in a json file in the model directory
         last_json_path = os.path.join(args.model_dir, "metrics_val_last_weights.json")
         utils.save_dict_to_json(val_metrics, last_json_path)
 
-
     print('Finished Training')
 
-    torch.save(model.state_dict(),'model.pt')
+    # save learning curves into pickle files
     with open("train.pickle", "wb") as f:
         pickle.dump(train_loss_plot,f)
+    with open("val.pickle", "wb") as f:
+        pickle.dump(val_loss_plot,f)
