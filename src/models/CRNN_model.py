@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import pdb
 
 class Conv2dSame(torch.nn.Module):
 
@@ -22,11 +23,12 @@ class DeepOCR(nn.Module):
 
     """Model for handwritten text recognition."""
 
-    def __init__(self,input_size):
+    def __init__(self,input_size, bidirectional = False):
         super(DeepOCR,self).__init__()
         assert(isinstance(input_size,tuple))
 
         input_h, input_w = input_size
+        self.epoch = 1
 
         self.conv1 = Conv2dSame(1,32,5)
         self.conv2 = Conv2dSame(32,64,5)
@@ -37,9 +39,10 @@ class DeepOCR(nn.Module):
         self.pool1 = nn.MaxPool2d((2,2))
         self.pool2 = nn.MaxPool2d((2,1))
 
-        self.lstm = nn.LSTM(int(256*input_h/32),256,num_layers=2)
+        self.lstm = nn.LSTM(int(256*input_h/32),256,num_layers=2, bidirectional=bidirectional)
 
-        self.fc = nn.Linear(256,79)
+        num_directions = 2 if bidirectional else 1
+        self.fc = nn.Linear(256*num_directions,79)
 
 
     def forward(self,x):
