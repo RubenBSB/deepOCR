@@ -51,8 +51,9 @@ class IAM_Dataset(Dataset):
             self.labels = self.labels[:training_length]
         else:
             validation_length = int(len(self.filenames) * 0.01)
-            self.filenames = self.filenames[len(self.filenames)-validation_length:]
-            self.labels = self.labels[len(self.filenames)-validation_length:]
+            d = len(self.filenames)
+            self.filenames = self.filenames[d-validation_length:]
+            self.labels = self.labels[d-validation_length:]
 
     def __len__(self):
         return len(self.filenames)
