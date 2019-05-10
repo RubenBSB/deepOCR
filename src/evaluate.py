@@ -9,6 +9,7 @@ import torch
 from torch.autograd import Variable
 import utils
 from similarity.normalized_levenshtein import NormalizedLevenshtein
+#import enchant
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', default='../data', help="Directory containing the dataset.")
@@ -46,8 +47,21 @@ def similarity(outputs_batch,labels_batch,dic):
     avg_sim = 1-avg_sim/outputs_batch.size(-1)
     return avg_sim
 
+def similarity_plus(outputs_batch,labels_batch,dic):
+    d = enchant.Dict("en_US")
+    norm_lev = NormalizedLevenshtein()
+    outputs_batch = torch.argmax(outputs_batch, -1)
+    avg_sim = 0
+    for j in range(outputs_batch.size(-1)):
+        pred = [dic[int(k)] for k in outputs_batch[:, j]]
+        pred = utils.clear(pred)
+        if not d.check(pred):
+            pred = d.suggest(pred)
+        avg_sim += norm_lev.distance(pred,labels_batch[j])
+    avg_sim = 1-avg_sim/outputs_batch.size(-1)
+    return avg_sim
 
-def evaluate(model, loss_fn, dataloader, metrics, params):
+def evaluate(model, loss_fn, dataloader, metrics):
     """Evaluate the model on `num_steps` batches."""
 
     # set model to evaluation mode
@@ -56,34 +70,35 @@ def evaluate(model, loss_fn, dataloader, metrics, params):
     #
     historic = []
 
-    # compute metrics over the dataset
-    for batch in dataloader:
+    with torch.no_grad():
+        # compute metrics over the dataset
+        for batch in dataloader:
 
-        inputs, labels, seq_lengths = batch['image'], batch['label'], batch['seq_length']
+            inputs, labels, seq_lengths = batch['image'], batch['label'], batch['seq_length']
 
-        # decompose labels by character
-        targets = []
-        for label in labels:
-            target = [dataloader.dataset.char_to_index[char] for char in label]
-            targets += target
-        targets = torch.tensor(targets)
+            # decompose labels by character
+            targets = []
+            for label in labels:
+                target = [dataloader.dataset.char_to_index[char] for char in label]
+                targets += target
+            targets = torch.tensor(targets)
 
-        # move to GPU if available
-        if params.cuda:
-            inputs, targets = inputs.cuda(async=True), targets.cuda(async=True)
+            # move to GPU if available
+            if torch.cuda.is_available():
+                inputs, targets = inputs.cuda(async=True), targets.cuda(async=True)
 
-        # compute model output
-        outputs = model(inputs)
-        loss = loss_fn(outputs, targets)
+            # compute model output
+            outputs = model(inputs)
+            loss = loss_fn(outputs, targets, torch.full((len(inputs),), 32, dtype=torch.int32), seq_lengths)
 
-        # extract data from torch Variable, move to cpu, convert to numpy arrays
-        outputs = outputs.data.cpu().numpy()
-        targets = targets.data.cpu().numpy()
+            # extract data from torch Variable, move to cpu, convert to numpy arrays
+            #outputs = outputs.data.cpu().numpy()
+            #targets = targets.data.cpu().numpy()
 
-        # compute all metrics on this batch
-        hist_batch = {metric: metrics[metric](outputs, targets) for metric in metrics}
-        hist_batch['loss'] = loss.data[0]
-        historic.append(hist_batch)
+            # compute all metrics on this batch
+            hist_batch = {metric: metrics[metric](outputs, labels, dataloader.dataset.index_to_char) for metric in metrics}
+            hist_batch['loss'] = loss.item()
+            historic.append(hist_batch)
 
     # compute mean of all metrics in summary
     metrics_mean = {metric: np.mean([x[metric] for x in historic]) for metric in historic[0]}
@@ -92,7 +107,8 @@ def evaluate(model, loss_fn, dataloader, metrics, params):
     return metrics_mean
 
 metrics = {
-    'similarity': similarity
+    'similarity': similarity,
+    'similarity_plus': similarity_plus
 }
 
 
