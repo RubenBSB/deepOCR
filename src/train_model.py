@@ -16,7 +16,7 @@ import utils
 from data.make_dataset import IAM_Dataset
 from data.data_transform import Rescale, Padding, ToTensor
 from models.CRNN_model import DeepOCR
-from evaluate import evaluate, metrics
+from evaluate import evaluate, similarity
 
 from tqdm import tqdm
 import pickle
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     val_loss_plot = []
 
     # dictionary containing the metrics that we want to look at
-    metrics = metrics
+    metrics = {'similarity': similarity}
 
     # reload weights from restore_file if specified
     if args.restore_file is not None:
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     best_val_sim = 0.0
 
     # MAIN LOOP
-    for epoch in range(params.num_epochs):
+    for epoch in range(model.epoch-1,params.num_epochs):
 
         # start training a new epoch
         logging.info("Epoch {}/{}".format(epoch+1, params.num_epochs))
