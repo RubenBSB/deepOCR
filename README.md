@@ -28,4 +28,6 @@ hw-text-recognition repository
 ├── ...
 ```
 
+## Poster
 
+![poster](https://rubenbsb.github.io/pdfs/deepOCR-poster.png)
