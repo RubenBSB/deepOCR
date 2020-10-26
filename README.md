@@ -1,4 +1,4 @@
-# hw-text-recognition
+# deepOCR
 
 This is a school project in deep learning I am currently working on.
 
@@ -17,7 +17,7 @@ I am using the [IAM Dataset](http://www.fki.inf.unibe.ch/databases/iam-handwriti
 You have to register to download the dataset. Once it is done, unzip it and place the 'words' directory and 'words.txt' file in the project repository as following :
 
 ```
-hw-text-recognition repository
+deepOCR repository
 ├── data
 │   ├── words
 │   │   ├── a01
